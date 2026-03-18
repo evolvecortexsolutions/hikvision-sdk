@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/evolvecortexsolutions/hikvision-go-wrapper/internal/bridge"
+	"github.com/evolvecortexsolutions/hikvision-sdk/internal/bridge"
 )
 
 type Config struct {
