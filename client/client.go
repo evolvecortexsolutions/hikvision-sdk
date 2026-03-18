@@ -1,10 +1,12 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"sync"
+	"time"
 
-	"github.com/evolvecortexsolutions/hikvision-sdk/internal/bridge"
+	"github.com/evolvecortexsolutions/hikvision-go-wrapper/internal/bridge"
 )
 
 type Config struct {
@@ -75,6 +77,36 @@ func (c *Client) SessionID() int32 {
 		return -1
 	}
 	return c.userID
+}
+
+// StartTalk begins two-way audio. Returns voice handle.
+func (c *Client) StartTalk() (int32, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.loggedIn {
+		return -1, errors.New("not logged in")
+	}
+	return bridge.StartTalk(c.userID)
+}
+
+// StopTalk closes a voice channel.
+func (c *Client) StopTalk(voiceHandle int32) error {
+	return bridge.StopTalk(voiceHandle)
+}
+
+// StartPlayback starts a VOD playback session.
+func (c *Client) StartPlayback(start, end time.Time, streamType uint8, fileIndex uint32) (int32, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.loggedIn {
+		return -1, errors.New("not logged in")
+	}
+	return bridge.PlayBackByTime(c.userID, start, end, streamType, fileIndex)
+}
+
+// StopPlayback stops a VOD playback session.
+func (c *Client) StopPlayback(playHandle int32) error {
+	return bridge.StopPlayback(playHandle)
 }
 
 // Cleanup relays SDK cleanup.
