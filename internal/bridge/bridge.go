@@ -85,7 +85,7 @@ extern BOOL NET_DVR_StopVoiceCom(LONG lVoiceComHandle);
 extern LONG NET_DVR_PlayBackByTime_V40(LONG lUserID, const NET_DVR_VOD_PARA* pVodPara);
 extern BOOL NET_DVR_StopPlayBack(LONG lPlayHandle);
 */
-import "C"
+// import "C"
 
 import "C"
 

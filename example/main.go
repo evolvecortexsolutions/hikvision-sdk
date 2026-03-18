@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evolvecortexsolutions/hikvision-go-wrapper/client"
+	"github.com/evolvecortexsolutions/hikvision-sdk/client"
 )
 
 func main() {
