@@ -27,55 +27,54 @@ func main() {
 				return
 			}
 
-			fmt.Printf("device %d logged in, session=%d\n", index, cli.SessionID())
+			fmt.Printf("device %d logged in, session=%d, type=%v\n", index, cli.SessionID(), cfg.DeviceType)
 
-			// 2-way audio: Start talk with playback callback
+			if err := cli.StartKeepAlive(20 * time.Second); err != nil {
+				fmt.Printf("device %d keepalive failed: %v\n", index, err)
+			}
+
 			voiceHandle, err := cli.StartTalkWithCallback()
 			if err != nil {
-				fmt.Printf("device %d start talk (callback) failed: %v\n", index, err)
+				fmt.Printf("device %d start talk failed: %v\n", index, err)
 			} else {
-				fmt.Printf("device %d started 2-way talk, handle=%d\n", index, voiceHandle)
-
-				// Send a short sample packet (silent PCM 16-bit LE 8kHz).
-				// Replace with real mic capture frames.
-				pcm := make([]byte, 320)
-				if err := cli.SendAudio(voiceHandle, pcm); err != nil {
+				fmt.Printf("device %d started talk, handle=%d\n", index, voiceHandle)
+				if err := cli.SendAudio(voiceHandle, make([]byte, 320)); err != nil {
 					fmt.Printf("device %d send audio failed: %v\n", index, err)
 				}
-
-				// Keep talk open a little before closing.
-				time.Sleep(3 * time.Second)
-
-				if stopErr := cli.StopTalk(voiceHandle); stopErr != nil {
-					fmt.Printf("device %d stop talk failed: %v\n", index, stopErr)
-				} else {
-					fmt.Printf("device %d stopped talk\n", index)
+				time.Sleep(2 * time.Second)
+				if err := cli.StopTalk(voiceHandle); err != nil {
+					fmt.Printf("device %d stop talk failed: %v\n", index, err)
 				}
 			}
 
-			// Start playback for a 10-second interval (example values).
+			if state, err := cli.GetDVRWorkState(); err != nil {
+				fmt.Printf("device %d work state read failed: %v\n", index, err)
+			} else {
+				fmt.Printf("device %d work state: %+v\n", index, state)
+			}
+
+			configBuf := make([]byte, 1024)
+			if n, err := cli.GetDVRConfig(1000, 0, configBuf); err != nil {
+				fmt.Printf("device %d config read failed: %v\n", index, err)
+			} else {
+				fmt.Printf("device %d config bytes: %d\n", index, n)
+			}
+
 			start := time.Now().Add(-10 * time.Minute)
 			end := time.Now().Add(-9 * time.Minute)
-			playHandle, err := cli.StartPlayback(start, end, 0, 0)
-			if err != nil {
+			if playHandle, err := cli.StartPlayback(start, end, 0, 0); err != nil {
 				fmt.Printf("device %d playback start failed: %v\n", index, err)
 			} else {
 				fmt.Printf("device %d playback started, handle=%d\n", index, playHandle)
-				if stopErr := cli.StopPlayback(playHandle); stopErr != nil {
-					fmt.Printf("device %d playback stop failed: %v\n", index, stopErr)
-				} else {
-					fmt.Printf("device %d playback stopped\n", index)
+				if err := cli.StopPlayback(playHandle); err != nil {
+					fmt.Printf("device %d playback stop failed: %v\n", index, err)
 				}
 			}
 
-			// Do something with the session. Minimal example sleep.
-			time.Sleep(500 * time.Millisecond)
-
+			cli.StopKeepAlive()
 			if err := cli.Logout(); err != nil {
 				fmt.Printf("device %d logout failed: %v\n", index, err)
-				return
 			}
-
 			fmt.Printf("device %d logged out\n", index)
 		}(i, cfg)
 	}

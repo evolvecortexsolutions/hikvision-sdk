@@ -71,6 +71,18 @@ extern int NET_DVR_Cleanup(void);
 extern int NET_DVR_Login_V30(char *sDVRIP, unsigned short wDVRPort, char *sUserName, char *sPassword, NET_DVR_DEVICEINFO_V30 *lpDeviceInfo);
 extern int NET_DVR_Logout(int lUserID);
 extern unsigned int NET_DVR_GetLastError(void);
+extern int NET_DVR_GetDVRConfig(int lUserID, unsigned int dwCommand, int lChannel, void *lpOutBuf, unsigned int dwOutBufLen, unsigned int *lpBytesReturned);
+
+typedef struct {
+    unsigned int dwDeviceStatic;
+    unsigned int dwLocalDisplay;
+    unsigned char byAudioChanStatus[2];
+    unsigned char byRes[10];
+} NET_DVR_WORKSTATE_V30;
+
+extern int NET_DVR_GetDVRWorkState_V30(int lUserID, NET_DVR_WORKSTATE_V30 *lpWorkState);
+extern int NET_DVR_KeepAlive(int lUserID);
+
 extern int NET_DVR_StartVoiceCom(int lUserID, void(*callback)(int, char*, unsigned int, unsigned char, unsigned int), unsigned int dwUser);
 extern int NET_DVR_StopVoiceCom(int lVoiceComHandle);
 extern int NET_DVR_VoiceComSendData(int lVoiceComHandle, char *pSendBuf, unsigned int dwBufSize);
@@ -176,7 +188,68 @@ func StopTalk(voiceHandle int32) error {
 	return nil
 }
 
-// SendAudio writes raw PCM bytes to the voice talk channel.
+// DVRWorkState is a simplified representation of DVR/NVR work state.
+type DVRWorkState struct {
+	DeviceStatic   uint32
+	LocalDisplay   uint32
+	AudioChanState []byte
+}
+
+// KeepAlive sends periodic heartbeat to prevent session timeout.
+func KeepAlive(userID int32) error {
+	if !inited {
+		return errors.New("SDK not initialized: call InitSDK first")
+	}
+	if userID < 0 {
+		return errors.New("invalid userID")
+	}
+	if C.NET_DVR_KeepAlive(C.int(userID)) == 0 {
+		errCode := C.NET_DVR_GetLastError()
+		return fmt.Errorf("NET_DVR_KeepAlive failed with code %d", int(errCode))
+	}
+	return nil
+}
+
+// GetDVRConfig fetches SDK config data into out buffer and returns bytes written.
+func GetDVRConfig(userID int32, command uint32, channel int32, out []byte) (int, error) {
+	if !inited {
+		return 0, errors.New("SDK not initialized: call InitSDK first")
+	}
+	if userID < 0 {
+		return 0, errors.New("invalid userID")
+	}
+	if len(out) == 0 {
+		return 0, errors.New("output buffer is empty")
+	}
+	var bytesReturned C.uint
+	ret := C.NET_DVR_GetDVRConfig(C.int(userID), C.uint(command), C.int(channel), unsafe.Pointer(&out[0]), C.uint(len(out)), &bytesReturned)
+	if ret == -1 {
+		errCode := C.NET_DVR_GetLastError()
+		return 0, fmt.Errorf("NET_DVR_GetDVRConfig failed with code %d", int(errCode))
+	}
+	return int(bytesReturned), nil
+}
+
+// GetDVRWorkState returns simplified work state info.
+func GetDVRWorkState(userID int32) (DVRWorkState, error) {
+	if !inited {
+		return DVRWorkState{}, errors.New("SDK not initialized: call InitSDK first")
+	}
+	if userID < 0 {
+		return DVRWorkState{}, errors.New("invalid userID")
+	}
+	var state C.NET_DVR_WORKSTATE_V30
+	if C.NET_DVR_GetDVRWorkState_V30(C.int(userID), &state) == 0 {
+		errCode := C.NET_DVR_GetLastError()
+		return DVRWorkState{}, fmt.Errorf("NET_DVR_GetDVRWorkState_V30 failed with code %d", int(errCode))
+	}
+	return DVRWorkState{
+		DeviceStatic:   uint32(state.dwDeviceStatic),
+		LocalDisplay:   uint32(state.dwLocalDisplay),
+		AudioChanState: []byte{byte(state.byAudioChanStatus[0]), byte(state.byAudioChanStatus[1])},
+	}, nil
+}
+
 // PlayBackByTime starts a VOD session and returns playback handle.
 func PlayBackByTime(userID int32, start time.Time, end time.Time, streamType uint8, fileIndex uint32) (int32, error) {
 	if !inited {
