@@ -81,7 +81,6 @@ typedef struct {
 } NET_DVR_WORKSTATE_V30;
 
 extern int NET_DVR_GetDVRWorkState_V30(int lUserID, NET_DVR_WORKSTATE_V30 *lpWorkState);
-extern int NET_DVR_KeepAlive(int lUserID);
 
 extern int NET_DVR_StartVoiceCom(int lUserID, void(*callback)(int, char*, unsigned int, unsigned char, unsigned int), unsigned int dwUser);
 extern int NET_DVR_StopVoiceCom(int lVoiceComHandle);
@@ -195,9 +194,10 @@ func KeepAlive(userID int32) error {
 	if userID < 0 {
 		return errors.New("invalid userID")
 	}
-	if C.NET_DVR_KeepAlive(C.int(userID)) == 0 {
+	var state C.NET_DVR_WORKSTATE_V30
+	if C.NET_DVR_GetDVRWorkState_V30(C.int(userID), &state) == 0 {
 		errCode := C.NET_DVR_GetLastError()
-		return fmt.Errorf("NET_DVR_KeepAlive failed with code %d", int(errCode))
+		return fmt.Errorf("NET_DVR_GetDVRWorkState_V30 failed with code %d", int(errCode))
 	}
 	return nil
 }
