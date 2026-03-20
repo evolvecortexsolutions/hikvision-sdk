@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evolvecortexsolutions/hikvision-sdk/internal/bridge"
+	"github.com/evolvecortexsolutions/hikvision-sdk/bridge"
 )
 
 type DeviceType int
