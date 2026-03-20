@@ -1,7 +1,7 @@
 package bridge
 
 // #cgo CFLAGS: -I${SRCDIR}/../../sdk/incEn
-// #cgo LDFLAGS: -L${SRCDIR}/../../sdk/lib -Wl,-rpath,${SRCDIR}/../../sdk/lib -lhcnetsdk
+// #cgo LDFLAGS: -L${SRCDIR}/../../sdk/lib -Wl,-rpath,${SRCDIR}/../../sdk/lib -lhcnetsdk -lopenal -lAudioRender
 /*
 #include <stdlib.h>
 
