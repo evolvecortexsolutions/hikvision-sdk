@@ -89,9 +89,27 @@ func (c *Client) StartTalk() (int32, error) {
 	return bridge.StartTalk(c.userID)
 }
 
+// StartTalkWithCallback begins two-way audio and plays device audio locally.
+func (c *Client) StartTalkWithCallback() (int32, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.loggedIn {
+		return -1, errors.New("not logged in")
+	}
+	return bridge.StartTalkWithCallback(c.userID)
+}
+
 // StopTalk closes a voice channel.
 func (c *Client) StopTalk(voiceHandle int32) error {
 	return bridge.StopTalk(voiceHandle)
+}
+
+// SendAudio sends raw PCM data into the active voice talk channel.
+func (c *Client) SendAudio(voiceHandle int32, payload []byte) error {
+	if len(payload) == 0 {
+		return errors.New("payload cannot be empty")
+	}
+	return bridge.SendAudio(voiceHandle, payload)
 }
 
 // StartPlayback starts a VOD playback session.

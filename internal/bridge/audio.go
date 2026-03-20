@@ -5,6 +5,12 @@ package bridge
 
 typedef void (*fVoiceDataCallBack)(int, char*, unsigned int, unsigned char, unsigned int);
 
+// Hikvision voice API declarations
+extern int NET_DVR_StartVoiceCom(int lUserID, fVoiceDataCallBack callback, unsigned int dwUser);
+extern int NET_DVR_StopVoiceCom(int lVoiceComHandle);
+extern int NET_DVR_VoiceComSendData(int lVoiceComHandle, char *pSendBuf, unsigned int dwBufSize);
+extern unsigned int NET_DVR_GetLastError(void);
+
 // forward declaration
 extern void goAudioCallback(int, char*, unsigned int, unsigned char, unsigned int);
 */
@@ -63,15 +69,22 @@ func StartTalkWithCallback(userID int32) (int32, error) {
 	return int32(handle), nil
 }
 
-// Send audio to device
-func SendAudio(handle int32, data []byte) {
+// SendAudio sends audio bytes via a voice channel.
+func SendAudio(handle int32, data []byte) error {
+	if handle < 0 {
+		return fmt.Errorf("invalid voice handle")
+	}
 	if len(data) == 0 {
-		return
+		return fmt.Errorf("payload cannot be empty")
 	}
 
-	C.NET_DVR_VoiceComSendData(
+	ret := C.NET_DVR_VoiceComSendData(
 		C.int(handle),
 		(*C.char)(unsafe.Pointer(&data[0])),
 		C.uint(len(data)),
 	)
+	if ret == 0 {
+		return fmt.Errorf("NET_DVR_VoiceComSendData failed with code %d", int(C.NET_DVR_GetLastError()))
+	}
+	return nil
 }

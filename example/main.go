@@ -29,12 +29,23 @@ func main() {
 
 			fmt.Printf("device %d logged in, session=%d\n", index, cli.SessionID())
 
-			// Start talk channel.
-			voiceHandle, err := cli.StartTalk()
+			// 2-way audio: Start talk with playback callback
+			voiceHandle, err := cli.StartTalkWithCallback()
 			if err != nil {
-				fmt.Printf("device %d start talk failed: %v\n", index, err)
+				fmt.Printf("device %d start talk (callback) failed: %v\n", index, err)
 			} else {
-				fmt.Printf("device %d started talk, handle=%d\n", index, voiceHandle)
+				fmt.Printf("device %d started 2-way talk, handle=%d\n", index, voiceHandle)
+
+				// Send a short sample packet (silent PCM 16-bit LE 8kHz).
+				// Replace with real mic capture frames.
+				pcm := make([]byte, 320)
+				if err := cli.SendAudio(voiceHandle, pcm); err != nil {
+					fmt.Printf("device %d send audio failed: %v\n", index, err)
+				}
+
+				// Keep talk open a little before closing.
+				time.Sleep(3 * time.Second)
+
 				if stopErr := cli.StopTalk(voiceHandle); stopErr != nil {
 					fmt.Printf("device %d stop talk failed: %v\n", index, stopErr)
 				} else {

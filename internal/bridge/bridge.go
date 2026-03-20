@@ -73,6 +73,7 @@ extern int NET_DVR_Logout(int lUserID);
 extern unsigned int NET_DVR_GetLastError(void);
 extern int NET_DVR_StartVoiceCom(int lUserID, void(*callback)(int, char*, unsigned int, unsigned char, unsigned int), unsigned int dwUser);
 extern int NET_DVR_StopVoiceCom(int lVoiceComHandle);
+extern int NET_DVR_VoiceComSendData(int lVoiceComHandle, char *pSendBuf, unsigned int dwBufSize);
 extern int NET_DVR_PlayBackByTime_V40(int lUserID, const NET_DVR_VOD_PARA* pVodPara);
 extern int NET_DVR_StopPlayBack(int lPlayHandle);
 */
@@ -175,6 +176,7 @@ func StopTalk(voiceHandle int32) error {
 	return nil
 }
 
+// SendAudio writes raw PCM bytes to the voice talk channel.
 // PlayBackByTime starts a VOD session and returns playback handle.
 func PlayBackByTime(userID int32, start time.Time, end time.Time, streamType uint8, fileIndex uint32) (int32, error) {
 	if !inited {
