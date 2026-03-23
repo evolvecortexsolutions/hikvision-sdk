@@ -148,7 +148,7 @@ func (ds *DeviceSession) StartTalk() error {
 		return fmt.Errorf("client not initialized")
 	}
 
-	// Start talk via device
+	// Start talk via device (two-way, callback-driven)
 	handle, err := ds.client.StartTalkWithCallback()
 	if err != nil {
 		ds.mu.Unlock()
@@ -162,6 +162,35 @@ func (ds *DeviceSession) StartTalk() error {
 	ds.audioStopCh = make(chan struct{})
 	ds.mu.Unlock()
 
+	return nil
+}
+
+// StartTalkSendOnly starts microphone-only mode (no playback) and avoids speaker path checks.
+func (ds *DeviceSession) StartTalkSendOnly() error {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+
+	if ds.state == SessionStateStopped {
+		return fmt.Errorf("session not connected")
+	}
+
+	if ds.state == SessionStateTalking {
+		return fmt.Errorf("talk already active")
+	}
+
+	if ds.client == nil {
+		return fmt.Errorf("client not initialized")
+	}
+
+	handle, err := ds.client.StartTalk()
+	if err != nil {
+		return fmt.Errorf("start send-only talk failed: %w", err)
+	}
+
+	ds.talkHandle = handle
+	ds.state = SessionStateTalking
+	ds.lastActivityTime = time.Now()
+	ds.talkRestartCount = 0
 	return nil
 }
 

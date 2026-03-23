@@ -4,6 +4,7 @@ package client
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +20,7 @@ type WebSocketAudioStream struct {
 	closeChan      chan struct{}
 	wg             sync.WaitGroup
 	isClosed       bool
+	receiveEnabled bool
 	lastSendTime   time.Time
 	bytesReceived  uint64
 	bytesSent      uint64
@@ -76,14 +78,31 @@ func (ws *WebSocketAudioStream) Start(onReceive func([]byte) error) error {
 		return onReceive(data)
 	}
 
-	// Use WebSocket-enabled talk
+	// Use WebSocket-enabled talk (two-way)
 	handle, err := bridge.StartTalkWithWebSocket(ws.session.client.UserID(), handler)
 	if err != nil {
+		// Voice intercom not supported for speaker path: fallback to send-only
+		if strings.Contains(err.Error(), "605") {
+			fmt.Printf("start talk two-way failed with 605, retrying send-only mode\n")
+			handle, err = ws.session.client.StartTalk()
+			if err != nil {
+				ws.mu.Unlock()
+				return fmt.Errorf("start talk fallback failed: %w", err)
+			}
+			ws.handle = handle
+			ws.receiveEnabled = false
+			ws.wg.Add(1)
+			go ws.sendLoop()
+			ws.mu.Unlock()
+			return nil
+		}
+
 		ws.mu.Unlock()
 		return fmt.Errorf("start talk failed: %w", err)
 	}
 
 	ws.handle = handle
+	ws.receiveEnabled = true
 	ws.wg.Add(1)
 	go ws.sendLoop()
 
@@ -168,7 +187,9 @@ func (ws *WebSocketAudioStream) Stop() error {
 		ws.handle = -1
 		ws.mu.Unlock()
 
-		bridge.UnregisterAudioCallback(handle)
+		if ws.receiveEnabled {
+			bridge.UnregisterAudioCallback(handle)
+		}
 		if err := ws.session.client.StopTalk(handle); err != nil {
 			return fmt.Errorf("stop talk failed: %w", err)
 		}
