@@ -118,6 +118,52 @@ extern unsigned int NET_DVR_GetLastError(void);
 extern int NET_DVR_GetDVRConfig(int lUserID, unsigned int dwCommand, int lChannel, void *lpOutBuf, unsigned int dwOutBufLen, unsigned int *lpBytesReturned);
 
 typedef struct {
+    char sIpV4[16];
+    unsigned char byIPv6[128];
+} NET_DVR_IPADDR;
+
+typedef struct {
+    NET_DVR_IPADDR struDVRIP;
+    NET_DVR_IPADDR struDVRIPMask;
+    unsigned int dwNetInterface;
+    unsigned char byCardType;
+    unsigned char byEnableDNS;
+    unsigned short wMTU;
+    unsigned char byMACAddr[6];
+    unsigned char byEthernetPortNo;
+    unsigned char bySilkScreen;
+    unsigned char byUseDhcp;
+    unsigned char byRes3[3];
+    NET_DVR_IPADDR struGatewayIpAddr;
+    NET_DVR_IPADDR struMulticastIpAddr;
+    unsigned char byIPv6Address[128];
+    unsigned char byIPv6AddressPrefixLen;
+    unsigned char byIPv6Gateway[128];
+    unsigned char byIPv6GatewayPrefixLen;
+    unsigned char byIPv6Mask[128];
+    unsigned char byRes[58];
+} NET_DVR_ETHERNET_V30;
+
+typedef struct {
+    unsigned int dwSize;
+    NET_DVR_ETHERNET_V30 struEtherNet[2];
+    NET_DVR_IPADDR struRes1[2];
+    NET_DVR_IPADDR struAlarmHostIpAddr;
+    unsigned char byRes2[4];
+    unsigned short wAlarmHostIpPort;
+    unsigned char byUseDhcp;
+    unsigned char byIPv6Mode;
+    NET_DVR_IPADDR struDnsServer1IpAddr;
+    NET_DVR_IPADDR struDnsServer2IpAddr;
+    unsigned char byIpResolver[64];
+    unsigned short wIpResolverPort;
+    unsigned short wHttpPortNo;
+    NET_DVR_IPADDR struMulticastIpAddr;
+    NET_DVR_IPADDR struGatewayIpAddr;
+    unsigned char byRes[128];
+} NET_DVR_NETCFG_V30;
+
+typedef struct {
     unsigned int dwDeviceStatic;
     unsigned int dwLocalDisplay;
     unsigned char byAudioChanStatus[2];
@@ -392,4 +438,73 @@ func StopPlayback(playHandle int32) error {
 		return fmt.Errorf("NET_DVR_StopPlayBack failed with code %d", int(errCode))
 	}
 	return nil
+}
+
+// NetworkInfo contains network interface information
+type NetworkInfo struct {
+	IP        string
+	Mask      string
+	Gateway   string
+	MAC       string
+	DHCP      bool
+	Interface int
+}
+
+// GetNetworkConfig retrieves network configuration from the device
+func GetNetworkConfig(userID int32) ([]NetworkInfo, error) {
+	if !inited {
+		return nil, errors.New("SDK not initialized: call InitSDK first")
+	}
+	if userID < 0 {
+		return nil, errors.New("invalid userID")
+	}
+
+	configBuf := make([]byte, 1024)
+	n, err := GetDVRConfig(userID, 1000, 0, configBuf) // NET_DVR_GET_NETCFG_V30
+	if err != nil {
+		return nil, fmt.Errorf("failed to get network config: %w", err)
+	}
+	if n == 0 {
+		return nil, errors.New("device returned empty network config")
+	}
+
+	// Parse the NET_DVR_NETCFG_V30 structure
+	var netCfg C.NET_DVR_NETCFG_V30
+	if n < C.sizeof_NET_DVR_NETCFG_V30 {
+		return nil, fmt.Errorf("received %d bytes, expected at least %d", n, C.sizeof_NET_DVR_NETCFG_V30)
+	}
+
+	// Copy the data into the structure
+	C.memcpy(unsafe.Pointer(&netCfg), unsafe.Pointer(&configBuf[0]), C.sizeof_NET_DVR_NETCFG_V30)
+
+	var networks []NetworkInfo
+	for i := 0; i < 2; i++ { // MAX_ETHERNET = 2
+		eth := netCfg.struEtherNet[i]
+
+		// Convert MAC address to string
+		mac := fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
+			eth.byMACAddr[0], eth.byMACAddr[1], eth.byMACAddr[2],
+			eth.byMACAddr[3], eth.byMACAddr[4], eth.byMACAddr[5])
+
+		// Convert IP addresses to strings
+		ip := ipAddrToString(eth.struDVRIP)
+		mask := ipAddrToString(eth.struDVRIPMask)
+		gateway := ipAddrToString(eth.struGatewayIpAddr)
+
+		networks = append(networks, NetworkInfo{
+			IP:        ip,
+			Mask:      mask,
+			Gateway:   gateway,
+			MAC:       mac,
+			DHCP:      eth.byUseDhcp == 1,
+			Interface: int(eth.dwNetInterface),
+		})
+	}
+
+	return networks, nil
+}
+
+// ipAddrToString converts NET_DVR_IPADDR to string
+func ipAddrToString(ip C.NET_DVR_IPADDR) string {
+	return fmt.Sprintf("%d.%d.%d.%d", ip.sIpV4[0], ip.sIpV4[1], ip.sIpV4[2], ip.sIpV4[3])
 }

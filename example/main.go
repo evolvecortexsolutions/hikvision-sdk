@@ -53,11 +53,13 @@ func main() {
 				fmt.Printf("device %d work state: %+v\n", index, state)
 			}
 
-			configBuf := make([]byte, 1024)
-			if n, err := cli.GetDVRConfig(1000, 0, configBuf); err != nil {
-				fmt.Printf("device %d config read failed: %v\n", index, err)
+			if networks, err := cli.GetNetworkConfig(); err != nil {
+				fmt.Printf("device %d network config read failed: %v\n", index, err)
 			} else {
-				fmt.Printf("device %d config bytes: %d\n", index, n)
+				for i, net := range networks {
+					fmt.Printf("device %d network %d: IP=%s, MAC=%s, Gateway=%s, DHCP=%v\n",
+						index, i, net.IP, net.MAC, net.Gateway, net.DHCP)
+				}
 			}
 
 			start := time.Now().Add(-10 * time.Minute)

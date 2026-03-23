@@ -168,6 +168,16 @@ func (c *Client) GetDVRWorkState() (bridge.DVRWorkState, error) {
 	return bridge.GetDVRWorkState(c.userID)
 }
 
+// GetNetworkConfig returns network configuration including MAC addresses and IP addresses.
+func (c *Client) GetNetworkConfig() ([]bridge.NetworkInfo, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.loggedIn {
+		return nil, errors.New("not logged in")
+	}
+	return bridge.GetNetworkConfig(c.userID)
+}
+
 // StartTalk begins two-way audio. Returns voice handle.
 func (c *Client) StartTalk() (int32, error) {
 	c.mu.Lock()
