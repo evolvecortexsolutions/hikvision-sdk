@@ -203,22 +203,40 @@ func LoginV40(ip string, port uint16, username string, password string) (int32, 
 	cPass := C.CString(password)
 	defer C.free(unsafe.Pointer(cPass))
 
-	var loginInfo C.NET_DVR_USER_LOGIN_INFO
-	C.memset(unsafe.Pointer(&loginInfo), 0, C.sizeof_NET_DVR_USER_LOGIN_INFO)
-	C.strncpy(&loginInfo.sDeviceAddress[0], cIP, C.size_t(len(ip)))
-	loginInfo.wPort = C.ushort(port)
-	C.strncpy(&loginInfo.sUserName[0], cUser, C.size_t(len(username)))
-	C.strncpy(&loginInfo.sPassword[0], cPass, C.size_t(len(password)))
-	loginInfo.byLoginMode = 0 // Private mode
-	loginInfo.byHttps = 0     // TCP
-
-	var deviceInfo C.NET_DVR_DEVICEINFO_V40
-	userID := C.NET_DVR_Login_V40(&loginInfo, &deviceInfo)
-	if userID == -1 {
-		errCode := C.NET_DVR_GetLastError()
-		return -1, fmt.Errorf("NET_DVR_Login_V40 failed with code %d", int(errCode))
+	// Try different login configurations in order of preference
+	loginAttempts := []struct {
+		loginMode byte
+		https     byte
+		desc      string
+	}{
+		{2, 2, "adapt mode"},  // Auto-detect both login mode and protocol
+		{0, 0, "private TCP"}, // Private mode with TCP
+		{1, 0, "ISAPI TCP"},   // ISAPI mode with TCP
+		{0, 1, "private TLS"}, // Private mode with TLS
+		{1, 1, "ISAPI TLS"},   // ISAPI mode with TLS
 	}
-	return int32(userID), nil
+
+	for _, attempt := range loginAttempts {
+		var loginInfo C.NET_DVR_USER_LOGIN_INFO
+		C.memset(unsafe.Pointer(&loginInfo), 0, C.sizeof_NET_DVR_USER_LOGIN_INFO)
+		C.strncpy(&loginInfo.sDeviceAddress[0], cIP, C.size_t(len(ip)))
+		loginInfo.wPort = C.ushort(port)
+		C.strncpy(&loginInfo.sUserName[0], cUser, C.size_t(len(username)))
+		C.strncpy(&loginInfo.sPassword[0], cPass, C.size_t(len(password)))
+		loginInfo.byUseTransport = 0
+		loginInfo.byLoginMode = C.uchar(attempt.loginMode)
+		loginInfo.byHttps = C.uchar(attempt.https)
+
+		var deviceInfo C.NET_DVR_DEVICEINFO_V40
+		userID := C.NET_DVR_Login_V40(&loginInfo, &deviceInfo)
+		if userID != -1 {
+			return int32(userID), nil
+		}
+	}
+
+	// All attempts failed, return the last error
+	errCode := C.NET_DVR_GetLastError()
+	return -1, fmt.Errorf("NET_DVR_Login_V40 failed with code %d (tried all login modes: adapt, private TCP, ISAPI TCP, private TLS, ISAPI TLS)", int(errCode))
 }
 
 func Logout(userID int32) error {
