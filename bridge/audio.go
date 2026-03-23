@@ -28,8 +28,8 @@ func goAudioCallback(handle C.int, data *C.char, size C.uint, flag C.uchar, user
 // handleAudioData routes device audio to registered handler callbacks.
 func handleAudioData(handle int32, data []byte) {
 	if err := GetAudioHandler().CallAudio(handle, data); err != nil {
-		// Log but don't crash; handler is responsible for error management
-		fmt.Printf("audio handler error for handle %d: %v\n", handle, err)
+		// Silently ignore if no callback registered (e.g., after stop)
+		// This prevents spam when stopping/restarting quickly
 	}
 }
 
