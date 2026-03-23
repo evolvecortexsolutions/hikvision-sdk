@@ -42,7 +42,7 @@ func New(cfg Config) *Client {
 	return &Client{cfg: cfg, userID: -1}
 }
 
-// Login logs into the device using NET_DVR_Login_V30.
+// Login logs into the device using NET_DVR_Login_V40.
 func (c *Client) Login() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -55,7 +55,7 @@ func (c *Client) Login() error {
 		return fmt.Errorf("bridge init failed: %w", err)
 	}
 
-	userID, err := bridge.LoginV30(c.cfg.IP, c.cfg.Port, c.cfg.Username, c.cfg.Password)
+	userID, err := bridge.LoginV40(c.cfg.IP, c.cfg.Port, c.cfg.Username, c.cfg.Password)
 	if err != nil {
 		return fmt.Errorf("login failed: %w", err)
 	}

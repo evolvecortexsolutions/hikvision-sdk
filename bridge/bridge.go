@@ -4,6 +4,7 @@ package bridge
 // #cgo LDFLAGS: -L${SRCDIR}/../sdk/lib -Wl,-rpath,${SRCDIR}/../sdk/lib -lhcnetsdk -lopenal -lAudioRender
 /*
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct {
     char sDVRIP[128];
@@ -38,6 +39,48 @@ typedef struct {
     unsigned char byRes[2];
 } NET_DVR_DEVICEINFO_V30;
 
+typedef struct tagNET_DVR_DEVICEINFO_V40
+{
+    NET_DVR_DEVICEINFO_V30 struDeviceV30;
+    unsigned char bySupportLock;
+    unsigned char byRetryLoginTime;
+    unsigned char byPasswordLevel;
+    unsigned char byProxyType;
+    unsigned int dwSurplusLockTime;
+    unsigned char byCharEncodeType;
+    unsigned char bySupportDev5;
+    unsigned char bySupport;
+    unsigned char byLoginMode;
+    unsigned int dwOEMCode;
+    int iResidualValidity;
+    unsigned char byResidualValidity;
+    unsigned char bySingleStartDTalkChan;
+    unsigned char bySingleDTalkChanNums;
+    unsigned char byPassWordResetLevel;
+    unsigned char bySupportStreamEncrypt;
+    unsigned char byMarketType;
+    unsigned char byRes2[238];
+} NET_DVR_DEVICEINFO_V40;
+
+typedef struct
+{
+    char sDeviceAddress[129];
+    unsigned char byUseTransport;
+    unsigned short wPort;
+    char sUserName[64];
+    char sPassword[64];
+    void* cbLoginResult;
+    void *pUser;
+    int bUseAsynLogin;
+    unsigned char byProxyType;
+    unsigned char byUseUTCTime;
+    unsigned char byLoginMode;
+    unsigned char byHttps;
+    int iProxyID;
+    unsigned char byVerifyMode;
+    unsigned char byRes3[119];
+} NET_DVR_USER_LOGIN_INFO;
+
 typedef struct {
     unsigned int dwYear;
     unsigned int dwMonth;
@@ -69,6 +112,7 @@ typedef struct {
 extern int NET_DVR_Init(void);
 extern int NET_DVR_Cleanup(void);
 extern int NET_DVR_Login_V30(char *sDVRIP, unsigned short wDVRPort, char *sUserName, char *sPassword, NET_DVR_DEVICEINFO_V30 *lpDeviceInfo);
+extern int NET_DVR_Login_V40(NET_DVR_USER_LOGIN_INFO *pLoginInfo, NET_DVR_DEVICEINFO_V40 *lpDeviceInfo);
 extern int NET_DVR_Logout(int lUserID);
 extern unsigned int NET_DVR_GetLastError(void);
 extern int NET_DVR_GetDVRConfig(int lUserID, unsigned int dwCommand, int lChannel, void *lpOutBuf, unsigned int dwOutBufLen, unsigned int *lpBytesReturned);
@@ -143,6 +187,36 @@ func LoginV30(ip string, port uint16, username string, password string) (int32, 
 	if userID == -1 {
 		errCode := C.NET_DVR_GetLastError()
 		return -1, fmt.Errorf("NET_DVR_Login_V30 failed with code %d", int(errCode))
+	}
+	return int32(userID), nil
+}
+
+func LoginV40(ip string, port uint16, username string, password string) (int32, error) {
+	if !inited {
+		return -1, errors.New("SDK not initialized: call InitSDK first")
+	}
+
+	cIP := C.CString(ip)
+	defer C.free(unsafe.Pointer(cIP))
+	cUser := C.CString(username)
+	defer C.free(unsafe.Pointer(cUser))
+	cPass := C.CString(password)
+	defer C.free(unsafe.Pointer(cPass))
+
+	var loginInfo C.NET_DVR_USER_LOGIN_INFO
+	C.memset(unsafe.Pointer(&loginInfo), 0, C.sizeof_NET_DVR_USER_LOGIN_INFO)
+	C.strncpy(&loginInfo.sDeviceAddress[0], cIP, C.size_t(len(ip)))
+	loginInfo.wPort = C.ushort(port)
+	C.strncpy(&loginInfo.sUserName[0], cUser, C.size_t(len(username)))
+	C.strncpy(&loginInfo.sPassword[0], cPass, C.size_t(len(password)))
+	loginInfo.byLoginMode = 0 // Private mode
+	loginInfo.byHttps = 0     // TCP
+
+	var deviceInfo C.NET_DVR_DEVICEINFO_V40
+	userID := C.NET_DVR_Login_V40(&loginInfo, &deviceInfo)
+	if userID == -1 {
+		errCode := C.NET_DVR_GetLastError()
+		return -1, fmt.Errorf("NET_DVR_Login_V40 failed with code %d", int(errCode))
 	}
 	return int32(userID), nil
 }
