@@ -1,3 +1,5 @@
+//go:build linux
+
 package bridge
 
 // #cgo CFLAGS: -I${SRCDIR}/../sdk/incEn
