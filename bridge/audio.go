@@ -58,7 +58,11 @@ func StartTalkWithCallback(userID int32) (int32, error) {
 	)
 
 	if handle == -1 {
-		return -1, fmt.Errorf("StartVoice failed: %d", C.NET_DVR_GetLastError())
+		errCode := C.NET_DVR_GetLastError()
+		if errCode == 11 { // NET_DVR_AUDIO_MODE_ERROR
+			return -1, fmt.Errorf("voice intercom not supported by device (audio card mode error)")
+		}
+		return -1, fmt.Errorf("StartVoice failed: %d", errCode)
 	}
 
 	return int32(handle), nil

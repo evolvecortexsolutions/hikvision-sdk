@@ -286,12 +286,11 @@ func KeepAlive(userID int32) error {
 	if userID < 0 {
 		return errors.New("invalid userID")
 	}
-	var state C.NET_DVR_WORKSTATE_V30
-	if C.NET_DVR_GetDVRWorkState_V30(C.int(userID), &state) == 0 {
-		errCode := C.NET_DVR_GetLastError()
-		return fmt.Errorf("NET_DVR_GetDVRWorkState_V30 failed with code %d", int(errCode))
-	}
-	return nil
+	// Use a simple device config query as keepalive instead of workstate
+	// This avoids V30/V40 compatibility issues
+	configBuf := make([]byte, 1024)
+	_, err := GetDVRConfig(userID, 100, 0, configBuf) // NET_DVR_GET_DEVICECFG
+	return err
 }
 
 func GetDVRConfig(userID int32, command uint32, channel int32, out []byte) (int, error) {
@@ -323,6 +322,14 @@ func GetDVRWorkState(userID int32) (DVRWorkState, error) {
 	var state C.NET_DVR_WORKSTATE_V30
 	if C.NET_DVR_GetDVRWorkState_V30(C.int(userID), &state) == 0 {
 		errCode := C.NET_DVR_GetLastError()
+		// If ISAPI mode doesn't support V30 workstate, return default state instead of error
+		if errCode == 189 { // NET_DVR_ISAPI_NOT_SUPPORT
+			return DVRWorkState{
+				DeviceStatic:   0,
+				LocalDisplay:   0,
+				AudioChanState: []byte{0, 0},
+			}, nil
+		}
 		return DVRWorkState{}, fmt.Errorf("NET_DVR_GetDVRWorkState_V30 failed with code %d", int(errCode))
 	}
 	return DVRWorkState{
@@ -366,7 +373,12 @@ func PlayBackByTime(userID int32, start, end time.Time, streamType uint8, fileIn
 	playHandle := C.NET_DVR_PlayBackByTime_V40(C.int(userID), &vod)
 	if playHandle == -1 {
 		errCode := C.NET_DVR_GetLastError()
-		return -1, fmt.Errorf("NET_DVR_PlayBackByTime_V40 failed with code %d", int(errCode))
+		switch errCode {
+		case 17:
+			return -1, fmt.Errorf("NET_DVR_PlayBackByTime_V40 failed: Wrong sequence of invoking API (error 17). This may indicate the device doesn't support playback or the login session is not properly established")
+		default:
+			return -1, fmt.Errorf("NET_DVR_PlayBackByTime_V40 failed with code %d", int(errCode))
+		}
 	}
 	return int32(playHandle), nil
 }
