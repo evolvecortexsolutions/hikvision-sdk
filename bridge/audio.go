@@ -22,6 +22,8 @@ import (
 )
 
 var speakerMu sync.Mutex
+var speakerOnce sync.Once
+var speakerDisabled bool
 
 //export goAudioCallback
 func goAudioCallback(handle C.int, data *C.char, size C.uint, flag C.uchar, user C.uint) {
@@ -32,6 +34,17 @@ func goAudioCallback(handle C.int, data *C.char, size C.uint, flag C.uchar, user
 func playAudio(data []byte) {
 	speakerMu.Lock()
 	defer speakerMu.Unlock()
+
+	speakerOnce.Do(func() {
+		if _, err := exec.LookPath("aplay"); err != nil {
+			speakerDisabled = true
+			fmt.Println("speaker disabled: aplay not found in PATH")
+		}
+	})
+
+	if speakerDisabled {
+		return
+	}
 
 	cmd := exec.Command("aplay", "-f", "S16_LE", "-r", "8000", "-c", "1")
 	stdin, err := cmd.StdinPipe()
@@ -45,9 +58,15 @@ func playAudio(data []byte) {
 		return
 	}
 
-	stdin.Write(data)
+	if _, err := stdin.Write(data); err != nil {
+		fmt.Println("speaker write error:", err)
+		// continue with close/wait so we don't leak
+	}
 	stdin.Close()
-	cmd.Wait()
+
+	if err := cmd.Wait(); err != nil {
+		fmt.Println("speaker wait error:", err)
+	}
 }
 
 func StartTalkWithCallback(userID int32) (int32, error) {
@@ -59,10 +78,14 @@ func StartTalkWithCallback(userID int32) (int32, error) {
 
 	if handle == -1 {
 		errCode := C.NET_DVR_GetLastError()
-		if errCode == 11 { // NET_DVR_AUDIO_MODE_ERROR
+		switch errCode {
+		case 11: // NET_DVR_AUDIO_MODE_ERROR
 			return -1, fmt.Errorf("voice intercom not supported by device (audio card mode error)")
+		case 605:
+			return -1, fmt.Errorf("voice intercom failed with code 605: device does not support speaker audio; use device console/SDK settings")
+		default:
+			return -1, fmt.Errorf("StartVoice failed: %d", errCode)
 		}
-		return -1, fmt.Errorf("StartVoice failed: %d", errCode)
 	}
 
 	return int32(handle), nil
