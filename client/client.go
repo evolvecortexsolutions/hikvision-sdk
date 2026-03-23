@@ -95,6 +95,12 @@ func (c *Client) SessionID() int32 {
 	return c.userID
 }
 
+// UserID returns the internal user ID for low-level bridge operations.
+// Returns -1 if not logged in.
+func (c *Client) UserID() int32 {
+	return c.SessionID()
+}
+
 // KeepAlive sends a one-shot keepalive call to the device.
 func (c *Client) KeepAlive() error {
 	c.mu.Lock()
